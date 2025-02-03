@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Error - Document Q&A System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f7fb;
+        }
+        .error-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .error-message {
+            color: #dc3545;
+            margin: 1rem 0;
+        }
+        .back-link {
+            color: #4a6cf7;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <h1>Oops! Something went wrong</h1>
+        <p class="error-message">{{ error }}</p>
+        <a href="{{ url_for('home') }}" class="back-link">Try Again</a>
+        <br><br>
+        <a href="{{ url_for('logout') }}" class="back-link">Logout</a>
+    </div>
+</body>
+</html>

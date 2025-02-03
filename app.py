@@ -14,16 +14,32 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Generate a random secret key
 
 # Configure database path for Render
-DB_DIR = os.path.dirname(os.path.abspath(__file__))
+if os.environ.get('RENDER'):
+    # Use Render's writable directory
+    DB_DIR = '/opt/render/project/src/'
+else:
+    # Local development path
+    DB_DIR = os.path.dirname(os.path.abspath(__file__))
+
 DB_PATH = os.path.join(DB_DIR, 'documents.db')
+UPLOAD_FOLDER = os.path.join(DB_DIR, 'uploads')
 
 # Configure upload folder
-UPLOAD_FOLDER = os.path.join(DB_DIR, 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Create necessary directories
+# Create necessary directories with proper permissions
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.chmod(UPLOAD_FOLDER, 0o777)  # Give full permissions to the uploads directory
+
+# Ensure database directory is writable
+if not os.path.exists(DB_PATH):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.close()
+        os.chmod(DB_PATH, 0o777)  # Give full permissions to the database file
+    except Exception as e:
+        print(f"Error creating database: {e}")
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -185,12 +201,16 @@ def logout():
 @app.route('/')
 @login_required
 def home():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT id, title FROM documents WHERE user_id = ?', (current_user.id,))
-    documents = c.fetchall()
-    conn.close()
-    return render_template('index.html', documents=documents)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT id, title FROM documents WHERE user_id = ?', (current_user.id,))
+        documents = c.fetchall()
+        conn.close()
+        return render_template('index.html', documents=documents)
+    except Exception as e:
+        print(f"Error in home route: {e}")  # This will appear in Render logs
+        return f"An error occurred: {str(e)}", 500
 
 @app.route('/upload', methods=['POST'])
 @login_required
@@ -301,6 +321,11 @@ If the answer cannot be found in any of the documents, please respond with "I ca
     except Exception as e:
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.errorhandler(500)
+def internal_error(error):
+    print(f"Internal error: {error}")  # This will appear in Render logs
+    return render_template('error.html', error=str(error)), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
