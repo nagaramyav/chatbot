@@ -176,6 +176,30 @@ If the answer cannot be found in any of the documents, please respond with "I ca
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/delete_document/<int:doc_id>', methods=['DELETE'])
+def delete_document(doc_id):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        # Check if document exists
+        c.execute('SELECT title FROM documents WHERE id = ?', (doc_id,))
+        document = c.fetchone()
+        
+        if document is None:
+            conn.close()
+            return jsonify({'error': 'Document not found'}), 404
+            
+        # Delete the document
+        c.execute('DELETE FROM documents WHERE id = ?', (doc_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Document deleted successfully'})
+    except Exception as e:
+        print(f"Error deleting document: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.errorhandler(413)
 def too_large(e):
     return jsonify({"error": "File is too large. Maximum size is 16MB"}), 413

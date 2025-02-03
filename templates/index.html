@@ -256,9 +256,14 @@
             <h2><i class="fas fa-folder-open"></i>Available Documents</h2>
             <div class="document-grid">
                 {% for doc in documents %}
-                <div class="document-item">
-                    <i class="fas fa-file-alt"></i>
-                    <span>{{ doc[1] }}</span>
+                <div class="document-item" id="doc-{{ doc[0] }}">
+                    <div class="document-info">
+                        <i class="fas fa-file-alt"></i>
+                        <span>{{ doc[1] }}</span>
+                    </div>
+                    <button class="delete-btn" onclick="deleteDocument({{ doc[0] }}, '{{ doc[1] }}')" title="Delete document">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
                 </div>
                 {% endfor %}
             </div>
@@ -365,6 +370,37 @@
                 sendMessage();
             }
         });
+
+        async function deleteDocument(docId, docTitle) {
+            if (!confirm(`Are you sure you want to delete "${docTitle}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/delete_document/${docId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Add fade-out animation
+                    const docElement = document.getElementById(`doc-${docId}`);
+                    docElement.classList.add('fade-out');
+                    
+                    // Remove element after animation
+                    setTimeout(() => {
+                        docElement.remove();
+                        showStatus('Document deleted successfully!', 'success');
+                    }, 300);
+                } else {
+                    showStatus(`Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('Error deleting document. Please try again.', 'error');
+            }
+        }
     </script>
 </body>
 </html>
