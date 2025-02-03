@@ -24,14 +24,6 @@
             background-color: #fff;
             border: 1px solid #ddd;
             border-radius: 4px;
-            cursor: pointer;
-        }
-        .document-item:hover {
-            background-color: #f0f0f0;
-        }
-        .document-item.selected {
-            background-color: #e3f2fd;
-            border-color: #2196F3;
         }
         .loader {
             display: none;
@@ -78,7 +70,7 @@
     <div class="document-list">
         <h2>Available Documents</h2>
         {% for doc in documents %}
-        <div class="document-item" onclick="selectDocument({{ doc[0] }}, '{{ doc[1] }}')" id="doc-{{ doc[0] }}">
+        <div class="document-item">
             {{ doc[1] }}
         </div>
         {% endfor %}
@@ -86,9 +78,9 @@
 
     <div class="qa-section">
         <h2>Ask Questions</h2>
-        <p id="selectedDoc">No document selected</p>
-        <textarea id="userInput" placeholder="Ask a question about the selected document..." disabled></textarea>
-        <button onclick="sendMessage()" id="askButton" disabled>Ask Question</button>
+        <p>Ask questions about any uploaded document</p>
+        <textarea id="userInput" placeholder="Ask a question about any document..."></textarea>
+        <button onclick="sendMessage()">Ask Question</button>
     </div>
 
     <div class="loader" id="loader"></div>
@@ -96,19 +88,6 @@
     <p id="response"></p>
 
     <script>
-        let selectedDocId = null;
-
-        function selectDocument(docId, docTitle) {
-            selectedDocId = docId;
-            document.querySelectorAll('.document-item').forEach(item => {
-                item.classList.remove('selected');
-            });
-            document.getElementById(`doc-${docId}`).classList.add('selected');
-            document.getElementById('selectedDoc').textContent = `Selected: ${docTitle}`;
-            document.getElementById('userInput').disabled = false;
-            document.getElementById('askButton').disabled = false;
-        }
-
         async function uploadFile() {
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
@@ -139,11 +118,6 @@
         }
 
         async function sendMessage() {
-            if (!selectedDocId) {
-                document.getElementById('response').innerText = 'Please select a document first!';
-                return;
-            }
-
             const userInput = document.getElementById('userInput').value;
             if (!userInput) return;
 
@@ -160,8 +134,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ 
-                        message: userInput,
-                        documentId: selectedDocId
+                        message: userInput
                     })
                 });
 

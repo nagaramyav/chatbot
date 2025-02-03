@@ -133,32 +133,38 @@ def chat():
     try:
         data = request.json
         question = data.get('message', '')
-        doc_id = data.get('documentId')
 
-        if not question or not doc_id:
-            return jsonify({"error": "Both question and document ID are required"}), 400
+        if not question:
+            return jsonify({"error": "Question is required"}), 400
 
-        # Get document from database
-        document = get_document(doc_id)
-        if not document:
-            return jsonify({"error": "Document not found"}), 404
+        # Get all documents from database
+        documents = get_all_documents()
+        if not documents:
+            return jsonify({"error": "No documents found in the system"}), 404
 
-        # Create prompt with document content
-        prompt = f"""Here is a document titled "{document[1]}":
+        # Create prompt with all documents
+        combined_context = ""
+        for doc in documents:
+            combined_context += f"\nDocument: {doc[1]}\n"
+            combined_context += f"Content: {doc[2]}\n"
+            combined_context += "-" * 50 + "\n"
+
+        prompt = f"""Here are all the available documents:
 ---
-{document[2]}
+{combined_context}
 ---
 
-Please answer the following question about the document:
+Please answer the following question using information from any of the above documents:
 {question}
 
-If the answer cannot be found in the document, please respond with "I cannot find the answer to this question in the provided document."
+If providing information from multiple documents, please specify which document(s) you're referencing.
+If the answer cannot be found in any of the documents, please respond with "I cannot find the answer to this question in any of the provided documents."
 """
 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo-16k",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on the provided document. Only use information from the document to answer questions."},
+                {"role": "system", "content": "You are a helpful assistant that answers questions based on the provided documents. Only use information from the documents to answer questions. When answering, cite which document(s) you're using for the information."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7
