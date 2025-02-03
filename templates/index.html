@@ -61,26 +61,34 @@
     <script>
         async function sendMessage() {
             const userInput = document.getElementById('userInput').value;
+            if (!userInput) return;
+
             const loader = document.getElementById('loader');
             const responseElement = document.getElementById('response');
 
             // Show loader and clear previous response
             loader.style.display = 'block';
-            responseElement.innerText = '';
+            responseElement.innerText = 'Thinking...';
 
             try {
-                // Send POST request to the backend
-                const response = await fetch('http://127.0.0.1:5000/chat', {
+                const response = await fetch('/chat', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({ message: userInput })
                 });
 
-                // Get the chatbot's response
                 const data = await response.json();
-                responseElement.innerText = data.response;
+                
+                if (data.error) {
+                    responseElement.innerText = `Error: ${data.error}`;
+                } else {
+                    responseElement.innerText = data.response;
+                }
             } catch (error) {
-                responseElement.innerText = 'Error: Unable to get a response.';
+                console.error('Error:', error);
+                responseElement.innerText = 'Error: Unable to get a response. Please try again.';
             } finally {
                 // Hide loader
                 loader.style.display = 'none';
