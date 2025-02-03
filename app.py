@@ -3,7 +3,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 import os
-import database
+import sqlite3
 from PyPDF2 import PdfReader
 import docx
 
@@ -12,17 +12,55 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+# Configure database path for persistent storage
+DB_DIR = os.getenv('SQLITE_DB_DIR', '.')
+DB_PATH = os.path.join(DB_DIR, 'documents.db')
+
 # Create uploads directory if it doesn't exist
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
-
-# Initialize database
-database.init_db()
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
+
+# Database functions
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS documents
+        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+         title TEXT NOT NULL,
+         content TEXT NOT NULL,
+         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+    ''')
+    conn.commit()
+    conn.close()
+
+def add_document(title, content):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT INTO documents (title, content) VALUES (?, ?)', (title, content))
+    conn.commit()
+    conn.close()
+
+def get_all_documents():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, title, content, created_at FROM documents')
+    documents = c.fetchall()
+    conn.close()
+    return documents
+
+def get_document(doc_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, title, content FROM documents WHERE id = ?', (doc_id,))
+    document = c.fetchone()
+    conn.close()
+    return document
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -46,9 +84,12 @@ def extract_text_from_file(file_path):
         doc = docx.Document(file_path)
         return ' '.join([paragraph.text for paragraph in doc.paragraphs])
 
+# Initialize database
+init_db()
+
 @app.route('/')
 def home():
-    documents = database.get_all_documents()
+    documents = get_all_documents()
     return render_template('index.html', documents=documents)
 
 @app.route('/upload', methods=['POST'])
@@ -69,13 +110,15 @@ def upload_file():
         try:
             text_content = extract_text_from_file(filepath)
             # Save to database
-            database.add_document(filename, text_content)
+            add_document(filename, text_content)
             
             # Clean up uploaded file
             os.remove(filepath)
             
             return jsonify({'success': True, 'message': 'File uploaded and processed successfully'})
         except Exception as e:
+            if os.path.exists(filepath):
+                os.remove(filepath)
             return jsonify({'error': f'Error processing file: {str(e)}'}), 500
     
     return jsonify({'error': 'Invalid file type'}), 400
@@ -91,7 +134,7 @@ def chat():
             return jsonify({"error": "Both question and document ID are required"}), 400
 
         # Get document from database
-        document = database.get_document(doc_id)
+        document = get_document(doc_id)
         if not document:
             return jsonify({"error": "Document not found"}), 404
 
@@ -121,6 +164,10 @@ If the answer cannot be found in the document, please respond with "I cannot fin
     except Exception as e:
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"error": "File is too large. Maximum size is 16MB"}), 413
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
