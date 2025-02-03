@@ -13,7 +13,8 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Configure database path for persistent storage
-DB_DIR = os.getenv('SQLITE_DB_DIR', '.')
+# DB_DIR = os.getenv('SQLITE_DB_DIR', '.')
+DB_DIR = os.getenv('SQLITE_DB_DIR', os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(DB_DIR, 'documents.db')
 
 # Create uploads directory if it doesn't exist
