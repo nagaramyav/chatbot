@@ -15,10 +15,8 @@ app.secret_key = os.urandom(24)  # Generate a random secret key
 
 # Configure database path for Render
 if os.environ.get('RENDER'):
-    # Use Render's writable directory
     DB_DIR = '/opt/render/project/src/'
 else:
-    # Local development path
     DB_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DB_PATH = os.path.join(DB_DIR, 'documents.db')
@@ -28,18 +26,12 @@ UPLOAD_FOLDER = os.path.join(DB_DIR, 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Create necessary directories with proper permissions
+# Create necessary directories
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.chmod(UPLOAD_FOLDER, 0o777)  # Give full permissions to the uploads directory
 
 # Ensure database directory is writable
-if not os.path.exists(DB_PATH):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.close()
-        os.chmod(DB_PATH, 0o777)  # Give full permissions to the database file
-    except Exception as e:
-        print(f"Error creating database: {e}")
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)  # Remove existing database to recreate schema
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -75,9 +67,13 @@ def init_db():
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
+        # Drop existing tables if they exist
+        c.execute('DROP TABLE IF EXISTS documents')
+        c.execute('DROP TABLE IF EXISTS users')
+        
         # Create users table
         c.execute('''
-            CREATE TABLE IF NOT EXISTS users
+            CREATE TABLE users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              username TEXT UNIQUE NOT NULL,
              password TEXT NOT NULL,
@@ -86,7 +82,7 @@ def init_db():
         
         # Create documents table with user_id
         c.execute('''
-            CREATE TABLE IF NOT EXISTS documents
+            CREATE TABLE documents
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              title TEXT NOT NULL,
              content TEXT NOT NULL,
@@ -96,10 +92,16 @@ def init_db():
         ''')
         
         conn.commit()
+        print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {e}")
+        raise
     finally:
         conn.close()
+
+# Initialize database when the application starts
+with app.app_context():
+    init_db()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -122,9 +124,6 @@ def extract_text_from_file(file_path):
     elif file_extension in ['doc', 'docx']:
         doc = docx.Document(file_path)
         return ' '.join([paragraph.text for paragraph in doc.paragraphs])
-
-# Initialize database
-init_db()
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -204,13 +203,19 @@ def home():
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
+        
+        # Debug: Print table schema
+        c.execute("SELECT sql FROM sqlite_master WHERE type='table'")
+        tables = c.fetchall()
+        print("Database tables:", tables)
+        
         c.execute('SELECT id, title FROM documents WHERE user_id = ?', (current_user.id,))
         documents = c.fetchall()
         conn.close()
         return render_template('index.html', documents=documents)
     except Exception as e:
-        print(f"Error in home route: {e}")  # This will appear in Render logs
-        return f"An error occurred: {str(e)}", 500
+        print(f"Error in home route: {e}")
+        return render_template('error.html', error=str(e))
 
 @app.route('/upload', methods=['POST'])
 @login_required
