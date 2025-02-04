@@ -305,8 +305,8 @@
         <div class="upload-section">
             <h2>Upload New Document</h2>
             <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" id="fileInput" accept=".txt,.pdf,.doc,.docx">
-                <button type="button" id="uploadButton" onclick="uploadFile()" disabled>Upload</button>
+                <input type="file" id="fileInput" accept=".txt,.pdf,.doc,.docx" required>
+                <button type="button" id="uploadButton" onclick="uploadFile()">Upload</button>
             </form>
             <div id="uploadStatus" class="status-message"></div>
             <div id="selectedFile">No file selected</div>
@@ -340,11 +340,10 @@
     </div>
 
     <script>
-        const fileInput = document.getElementById('fileInput');
-        const selectedFile = document.getElementById('selectedFile');
-        const uploadButton = document.getElementById('uploadButton');
-
-        fileInput.addEventListener('change', function() {
+        document.getElementById('fileInput').addEventListener('change', function() {
+            const selectedFile = document.getElementById('selectedFile');
+            const uploadButton = document.getElementById('uploadButton');
+            
             if (this.files.length > 0) {
                 selectedFile.textContent = `Selected file: ${this.files[0].name}`;
                 uploadButton.disabled = false;
@@ -353,12 +352,6 @@
                 uploadButton.disabled = true;
             }
         });
-
-        function showStatus(message, type) {
-            const statusDiv = document.getElementById('uploadStatus');
-            statusDiv.className = `status-message status-${type}`;
-            statusDiv.textContent = message;
-        }
 
         async function uploadFile() {
             const fileInput = document.getElementById('fileInput');
@@ -399,9 +392,12 @@
                 showStatus('Error uploading file. Please try again.', 'error');
                 uploadButton.disabled = false;
             }
+        }
 
-            fileInput.value = '';
-            document.getElementById('selectedFile').textContent = 'No file selected';
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.className = `status-message status-${type}`;
+            statusDiv.textContent = message;
         }
 
         async function deleteDocument(docId) {
