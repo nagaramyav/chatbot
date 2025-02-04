@@ -7,14 +7,14 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from werkzeug.utils import secure_filename
 import tempfile
+import traceback  # Add this for better error tracking
 
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # Replace with a real secret key
-app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes session lifetime
+app.secret_key = os.urandom(24)
 
 # Configure database path for Render
-DB_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_DIR = '/tmp'  # Use /tmp directory in Render
 DB_PATH = os.path.join(DB_DIR, 'documents.db')
 
 # Use temporary directory for uploads
@@ -30,79 +30,44 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Add this near the top of your file
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-class User(UserMixin):
-    def __init__(self, id, username):
-        self.id = id
-        self.username = username
-
-@login_manager.user_loader
-def load_user(user_id):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
-        user = c.fetchone()
-        conn.close()
-        if user:
-            return User(user[0], user[1])
-    except Exception as e:
-        print(f"Error loading user: {e}")
-    return None
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def init_db():
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
-        # Drop existing tables if they exist
-        c.execute('DROP TABLE IF EXISTS documents')
-        c.execute('DROP TABLE IF EXISTS users')
-        
         # Create users table
         c.execute('''
-            CREATE TABLE users
+            CREATE TABLE IF NOT EXISTS users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              username TEXT UNIQUE NOT NULL,
-             password TEXT NOT NULL,
-             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+             password TEXT NOT NULL)
         ''')
         
-        # Create documents table with user_id
+        # Create documents table
         c.execute('''
-            CREATE TABLE documents
+            CREATE TABLE IF NOT EXISTS documents
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              title TEXT NOT NULL,
              content TEXT NOT NULL,
-             user_id INTEGER NOT NULL,
-             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-             FOREIGN KEY (user_id) REFERENCES users (id))
+             user_id INTEGER NOT NULL)
         ''')
         
         conn.commit()
         print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {e}")
-        raise
+        print(traceback.format_exc())
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
-# Initialize database when the application starts
-with app.app_context():
-    # Remove the existing database file if it exists
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
-        print("Removed existing database")
-    
-    # Create new database with updated schema
-    init_db()
-    print("Created new database with updated schema")
+# Initialize database
+init_db()
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -195,24 +160,13 @@ def home():
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        
-        # Debug: Print current user ID
-        print(f"Current user ID: {current_user.id}")
-        
-        # Debug: Print table schema
-        c.execute("PRAGMA table_info(documents);")
-        columns = c.fetchall()
-        print(f"Documents table columns: {columns}")
-        
-        # Get documents for current user
         c.execute('SELECT id, title FROM documents WHERE user_id = ?', (current_user.id,))
         documents = c.fetchall()
-        print(f"Found {len(documents)} documents for user")
-        
         conn.close()
         return render_template('index.html', documents=documents)
     except Exception as e:
-        print(f"Error in home route: {e}")
+        print(f"Home error: {e}")
+        print(traceback.format_exc())
         return render_template('error.html', error=str(e))
 
 @app.route('/chat', methods=['POST'])
@@ -259,77 +213,70 @@ Question: {question}
         print(f"Chat error: {e}")
         return jsonify({"error": str(e)}), 500
 
-def get_db_connection():
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        return conn
-    except Exception as e:
-        print(f"Database connection error: {e}")
-        raise
-
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload_file():
+    print("Upload request received")  # Debug log
     try:
         if 'file' not in request.files:
+            print("No file in request")  # Debug log
             return jsonify({'error': 'No file part'}), 400
         
         file = request.files['file']
         if file.filename == '':
+            print("No filename")  # Debug log
             return jsonify({'error': 'No selected file'}), 400
         
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            print(f"Saving file to: {filepath}")  # Debug log
             
             # Save the file temporarily
             file.save(filepath)
+            print("File saved temporarily")  # Debug log
             
             # Read the content
-            content = extract_text_from_file(filepath)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                print("File content read successfully")  # Debug log
+            except Exception as e:
+                print(f"Error reading file: {e}")  # Debug log
+                return jsonify({'error': f'Error reading file: {str(e)}'}), 500
+            finally:
+                # Clean up the temporary file
+                if os.path.exists(filepath):
+                    os.remove(filepath)
             
             # Save to database
-            conn = get_db_connection()
-            c = conn.cursor()
-            c.execute('INSERT INTO documents (title, content, user_id) VALUES (?, ?, ?)',
-                     (filename, content, current_user.id))
-            conn.commit()
-            conn.close()
-            
-            # Clean up the file
-            os.remove(filepath)
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute('INSERT INTO documents (title, content, user_id) VALUES (?, ?, ?)',
+                         (filename, content, current_user.id))
+                conn.commit()
+                print("Document saved to database")  # Debug log
+            except Exception as e:
+                print(f"Database error: {e}")  # Debug log
+                return jsonify({'error': f'Database error: {str(e)}'}), 500
+            finally:
+                if conn:
+                    conn.close()
             
             return jsonify({
                 'success': True,
                 'message': 'File uploaded successfully'
             })
         
+        print("Invalid file type")  # Debug log
         return jsonify({'error': 'Invalid file type'}), 400
     
     except Exception as e:
-        print(f"Upload error: {e}")
+        print(f"Upload error: {e}")  # Debug log
+        print(traceback.format_exc())  # Print full traceback
         return jsonify({'error': str(e)}), 500
-
-def extract_text_from_file(filepath):
-    """Extract text content from different file types."""
-    try:
-        filename = os.path.basename(filepath)
-        if filename.endswith('.txt'):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                return f.read()
-        elif filename.endswith('.pdf'):
-            # Add PDF handling here
-            return "PDF content extraction not implemented yet"
-        elif filename.endswith(('.doc', '.docx')):
-            # Add Word document handling here
-            return "Word document extraction not implemented yet"
-        else:
-            return "Unsupported file type"
-    except Exception as e:
-        print(f"Text extraction error: {e}")
-        return f"Error extracting text: {str(e)}"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=True)

@@ -369,6 +369,7 @@
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
             const uploadButton = document.getElementById('uploadButton');
+            const statusDiv = document.getElementById('uploadStatus');
             
             if (!file) {
                 showStatus('Please select a file first', 'error');
@@ -387,19 +388,15 @@
                     body: formData
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
                 const result = await response.json();
-
-                if (result.success) {
+                
+                if (response.ok && result.success) {
                     showStatus('File uploaded successfully!', 'success');
                     setTimeout(() => {
                         window.location.reload();
                     }, 1500);
                 } else {
-                    showStatus(`Upload failed: ${result.error}`, 'error');
+                    showStatus(`Upload failed: ${result.error || 'Unknown error'}`, 'error');
                     uploadButton.disabled = false;
                 }
             } catch (error) {
@@ -408,7 +405,6 @@
                 uploadButton.disabled = false;
             }
 
-            // Clear the file input
             fileInput.value = '';
             document.getElementById('selectedFile').textContent = 'No file selected';
         }
