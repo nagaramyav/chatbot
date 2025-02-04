@@ -32,6 +32,27 @@ login_manager.login_view = 'login'
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 
+# User class definition
+class User(UserMixin):
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
+
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
+        user = c.fetchone()
+        conn.close()
+        if user:
+            return User(user[0], user[1])
+        return None
+    except Exception as e:
+        print(f"Error loading user: {e}")
+        return None
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -129,7 +150,8 @@ def login():
                 return render_template('login.html')
             
             if check_password_hash(user[2], password):
-                login_user(User(user[0], user[1]))
+                user_obj = User(user[0], user[1])
+                login_user(user_obj)
                 flash('Logged in successfully!', 'success')
                 return redirect(url_for('home'))
             else:
