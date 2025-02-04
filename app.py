@@ -8,6 +8,9 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 import tempfile
 import traceback  # Add this for better error tracking
+import PyPDF2  # Make sure to install this library
+from docx import Document  # Make sure to install python-docx
+import csv
 
 load_dotenv()
 app = Flask(__name__)
@@ -30,7 +33,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx', 'csv'}
 
 # User class definition
 class User(UserMixin):
@@ -257,10 +260,26 @@ def upload_file():
             file.save(filepath)
             print("File saved temporarily")  # Debug log
             
-            # Read the content
+            # Read the content based on file type
+            content = ""
             try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                if filename.endswith('.pdf'):
+                    with open(filepath, 'rb') as f:
+                        reader = PyPDF2.PdfReader(f)
+                        content = "\n".join(page.extract_text() for page in reader.pages)
+                elif filename.endswith('.docx'):
+                    doc = Document(filepath)
+                    content = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+                elif filename.endswith('.txt'):
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                elif filename.endswith('.csv'):
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        reader = csv.reader(f)
+                        content = "\n".join([", ".join(row) for row in reader])
+                else:
+                    return jsonify({'error': 'Unsupported file type'}), 400
+                
                 print("File content read successfully")  # Debug log
             except Exception as e:
                 print(f"Error reading file: {e}")  # Debug log
