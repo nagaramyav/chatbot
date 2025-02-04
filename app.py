@@ -50,6 +50,11 @@ def load_user(user_id):
 
 def init_db():
     try:
+        # First, try to remove the existing database
+        if os.path.exists(DB_PATH):
+            os.remove(DB_PATH)
+            print("Removed existing database")
+        
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
@@ -58,26 +63,49 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              username TEXT UNIQUE NOT NULL,
-             password TEXT NOT NULL)
+             password TEXT NOT NULL,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
         ''')
+        print("Created users table")
         
-        # Create documents table
+        # Create documents table with user_id
         c.execute('''
             CREATE TABLE IF NOT EXISTS documents
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              title TEXT NOT NULL,
              content TEXT NOT NULL,
-             user_id INTEGER NOT NULL)
+             user_id INTEGER NOT NULL,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (user_id) REFERENCES users (id))
         ''')
+        print("Created documents table")
+        
+        # Verify tables were created
+        c.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = c.fetchall()
+        print(f"Tables in database: {tables}")
+        
+        # Verify columns in documents table
+        c.execute("PRAGMA table_info(documents);")
+        columns = c.fetchall()
+        print(f"Columns in documents table: {columns}")
         
         conn.commit()
+        print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {e}")
+        raise
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
-# Initialize database
-init_db()
+# Initialize database when the application starts
+with app.app_context():
+    try:
+        init_db()
+        print("Database initialization completed")
+    except Exception as e:
+        print(f"Failed to initialize database: {e}")
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -147,12 +175,24 @@ def home():
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
+        
+        # Debug: Print current user ID
+        print(f"Current user ID: {current_user.id}")
+        
+        # Debug: Print table schema
+        c.execute("PRAGMA table_info(documents);")
+        columns = c.fetchall()
+        print(f"Documents table columns: {columns}")
+        
+        # Get documents for current user
         c.execute('SELECT id, title FROM documents WHERE user_id = ?', (current_user.id,))
         documents = c.fetchall()
+        print(f"Found {len(documents)} documents for user")
+        
         conn.close()
         return render_template('index.html', documents=documents)
     except Exception as e:
-        print(f"Home error: {e}")
+        print(f"Error in home route: {e}")
         return render_template('error.html', error=str(e))
 
 @app.route('/chat', methods=['POST'])
@@ -198,6 +238,51 @@ Question: {question}
     except Exception as e:
         print(f"Chat error: {e}")
         return jsonify({"error": str(e)}), 500
+
+def get_db_connection():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        raise
+
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    if file and allowed_file(file.filename):
+        try:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
+            text_content = extract_text_from_file(filepath)
+            
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute('INSERT INTO documents (title, content, user_id) VALUES (?, ?, ?)',
+                     (filename, text_content, current_user.id))
+            conn.commit()
+            conn.close()
+            
+            os.remove(filepath)  # Clean up the uploaded file
+            
+            return jsonify({'success': True, 'message': 'File uploaded successfully'})
+        except Exception as e:
+            print(f"Upload error: {e}")
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'error': str(e)}), 500
+    
+    return jsonify({'error': 'Invalid file type'}), 400
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
