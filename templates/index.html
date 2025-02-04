@@ -25,13 +25,36 @@
         }
 
         .header {
-            text-align: center;
-            padding: 30px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
             background: linear-gradient(135deg, #6e8efb, #4a6cf7);
             color: white;
             border-radius: 10px;
             margin-bottom: 30px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-title {
+            margin: 0;
+        }
+
+        .logout-btn {
+            background-color: white;
+            color: #4a6cf7;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #f0f0f0;
+            transform: translateY(-2px);
         }
 
         .header h1 {
@@ -232,8 +255,10 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Smart Document Q&A System</h1>
-            <p>Upload documents and get instant answers to your questions</p>
+            <h1 class="header-title">Smart Document Q&A System</h1>
+            <a href="{{ url_for('logout') }}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
         </div>
 
         <div class="card">
