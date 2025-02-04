@@ -61,21 +61,27 @@ def init_db():
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
+        # Drop existing tables if they exist
+        c.execute('DROP TABLE IF EXISTS documents')
+        c.execute('DROP TABLE IF EXISTS users')
+        
         # Create users table
         c.execute('''
-            CREATE TABLE IF NOT EXISTS users
+            CREATE TABLE users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              username TEXT UNIQUE NOT NULL,
-             password TEXT NOT NULL)
+             password TEXT NOT NULL,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
         ''')
         
-        # Create documents table
+        # Create documents table with user_id
         c.execute('''
-            CREATE TABLE IF NOT EXISTS documents
+            CREATE TABLE documents
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              title TEXT NOT NULL,
              content TEXT NOT NULL,
              user_id INTEGER NOT NULL,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
              FOREIGN KEY (user_id) REFERENCES users (id))
         ''')
         
@@ -83,12 +89,20 @@ def init_db():
         print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {e}")
+        raise
     finally:
         conn.close()
 
 # Initialize database when the application starts
 with app.app_context():
+    # Remove the existing database file if it exists
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+        print("Removed existing database")
+    
+    # Create new database with updated schema
     init_db()
+    print("Created new database with updated schema")
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
