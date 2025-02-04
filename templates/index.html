@@ -366,7 +366,10 @@
         }
 
         async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
+            const uploadButton = document.getElementById('uploadButton');
+            
             if (!file) {
                 showStatus('Please select a file first', 'error');
                 return;
@@ -383,6 +386,10 @@
                     method: 'POST',
                     body: formData
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
                 const result = await response.json();
 
@@ -401,8 +408,9 @@
                 uploadButton.disabled = false;
             }
 
+            // Clear the file input
             fileInput.value = '';
-            selectedFile.textContent = 'No file selected';
+            document.getElementById('selectedFile').textContent = 'No file selected';
         }
 
         async function deleteDocument(docId) {

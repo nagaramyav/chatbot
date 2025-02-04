@@ -10,7 +10,8 @@ import tempfile
 
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = 'your-secret-key-here'  # Replace with a real secret key
+app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes session lifetime
 
 # Configure database path for Render
 DB_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -57,11 +58,6 @@ def load_user(user_id):
 
 def init_db():
     try:
-        # First, try to remove the existing database
-        if os.path.exists(DB_PATH):
-            os.remove(DB_PATH)
-            print("Removed existing database")
-        
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
@@ -70,49 +66,29 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              username TEXT UNIQUE NOT NULL,
-             password TEXT NOT NULL,
-             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+             password TEXT NOT NULL)
         ''')
-        print("Created users table")
         
-        # Create documents table with user_id
+        # Create documents table
         c.execute('''
             CREATE TABLE IF NOT EXISTS documents
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              title TEXT NOT NULL,
              content TEXT NOT NULL,
              user_id INTEGER NOT NULL,
-             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
              FOREIGN KEY (user_id) REFERENCES users (id))
         ''')
-        print("Created documents table")
-        
-        # Verify tables were created
-        c.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = c.fetchall()
-        print(f"Tables in database: {tables}")
-        
-        # Verify columns in documents table
-        c.execute("PRAGMA table_info(documents);")
-        columns = c.fetchall()
-        print(f"Columns in documents table: {columns}")
         
         conn.commit()
         print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {e}")
-        raise
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 # Initialize database when the application starts
 with app.app_context():
-    try:
-        init_db()
-        print("Database initialization completed")
-    except Exception as e:
-        print(f"Failed to initialize database: {e}")
+    init_db()
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -191,8 +167,13 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
-    logout_user()
-    return redirect(url_for('login'))
+    try:
+        logout_user()
+        session.clear()  # Clear all session data
+        return redirect(url_for('login'))
+    except Exception as e:
+        print(f"Logout error: {e}")
+        return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
@@ -276,38 +257,64 @@ def get_db_connection():
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    if file and allowed_file(file.filename):
-        try:
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+        
+        if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            # Save the file temporarily
             file.save(filepath)
             
-            text_content = extract_text_from_file(filepath)
+            # Read the content
+            content = extract_text_from_file(filepath)
             
+            # Save to database
             conn = get_db_connection()
             c = conn.cursor()
             c.execute('INSERT INTO documents (title, content, user_id) VALUES (?, ?, ?)',
-                     (filename, text_content, current_user.id))
+                     (filename, content, current_user.id))
             conn.commit()
             conn.close()
             
-            os.remove(filepath)  # Clean up the uploaded file
+            # Clean up the file
+            os.remove(filepath)
             
-            return jsonify({'success': True, 'message': 'File uploaded successfully'})
-        except Exception as e:
-            print(f"Upload error: {e}")
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            return jsonify({'error': str(e)}), 500
+            return jsonify({
+                'success': True,
+                'message': 'File uploaded successfully'
+            })
+        
+        return jsonify({'error': 'Invalid file type'}), 400
     
-    return jsonify({'error': 'Invalid file type'}), 400
+    except Exception as e:
+        print(f"Upload error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+def extract_text_from_file(filepath):
+    """Extract text content from different file types."""
+    try:
+        filename = os.path.basename(filepath)
+        if filename.endswith('.txt'):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read()
+        elif filename.endswith('.pdf'):
+            # Add PDF handling here
+            return "PDF content extraction not implemented yet"
+        elif filename.endswith(('.doc', '.docx')):
+            # Add Word document handling here
+            return "Word document extraction not implemented yet"
+        else:
+            return "Unsupported file type"
+    except Exception as e:
+        print(f"Text extraction error: {e}")
+        return f"Error extracting text: {str(e)}"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
