@@ -75,17 +75,16 @@ def init_db():
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              title TEXT NOT NULL,
              content TEXT NOT NULL,
-             user_id INTEGER NOT NULL)
+             user_id INTEGER NOT NULL,
+             FOREIGN KEY (user_id) REFERENCES users (id))
         ''')
         
         conn.commit()
         print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {e}")
-        print(traceback.format_exc())
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 # Initialize database
 init_db()
@@ -296,7 +295,6 @@ def upload_file():
     
     except Exception as e:
         print(f"Upload error: {e}")  # Debug log
-        print(traceback.format_exc())  # Print full traceback
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
