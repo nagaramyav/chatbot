@@ -303,18 +303,13 @@
         </div>
 
         <div class="upload-section">
-            <h2><i class="fas fa-upload"></i> Upload New Document</h2>
-            <div class="file-input-container">
-                <label for="fileInput" class="file-input-button">
-                    <i class="fas fa-file-upload"></i> Browse Files
-                </label>
-                <input type="file" id="fileInput" class="file-input" accept=".txt,.pdf,.doc,.docx">
-                <div class="selected-file" id="selectedFile">No file selected</div>
-            </div>
-            <button onclick="uploadFile()" class="upload-button" id="uploadButton" disabled>
-                <i class="fas fa-cloud-upload-alt"></i> Upload Document
-            </button>
+            <h2>Upload New Document</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" id="fileInput" accept=".txt,.pdf,.doc,.docx">
+                <button type="button" id="uploadButton" onclick="uploadFile()" disabled>Upload</button>
+            </form>
             <div id="uploadStatus" class="status-message"></div>
+            <div id="selectedFile">No file selected</div>
         </div>
 
         <div class="document-list">
