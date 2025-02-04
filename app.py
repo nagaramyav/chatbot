@@ -117,20 +117,23 @@ with app.app_context():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        if not username or not password:
-            return render_template('register.html', error='Username and password are required')
-        
         try:
+            username = request.form.get('username')
+            password = request.form.get('password')
+            
+            if not username or not password:
+                flash('Username and password are required', 'error')
+                return render_template('register.html')
+            
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             
-            # Check if username exists
+            # Check if username already exists
             c.execute('SELECT id FROM users WHERE username = ?', (username,))
-            if c.fetchone():
-                return render_template('register.html', error='Username already exists')
+            if c.fetchone() is not None:
+                conn.close()
+                flash('Username already exists. Please choose another.', 'error')
+                return render_template('register.html')
             
             # Create new user
             hashed_password = generate_password_hash(password)
@@ -139,34 +142,49 @@ def register():
             conn.commit()
             conn.close()
             
+            flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
+            
         except Exception as e:
             print(f"Registration error: {e}")
-            return render_template('register.html', error='Registration failed')
+            flash('An error occurred during registration', 'error')
+            return render_template('register.html')
     
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
         try:
+            username = request.form.get('username')
+            password = request.form.get('password')
+            
+            if not username or not password:
+                flash('Please enter both username and password', 'error')
+                return render_template('login.html')
+            
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute('SELECT id, username, password FROM users WHERE username = ?', (username,))
             user = c.fetchone()
             conn.close()
             
-            if user and check_password_hash(user[2], password):
-                login_user(User(user[0], user[1]))
-                return redirect(url_for('home'))
+            if user is None:
+                flash('Username not found. Please register first.', 'error')
+                return render_template('login.html')
             
-            return render_template('login.html', error='Invalid username or password')
+            if check_password_hash(user[2], password):
+                login_user(User(user[0], user[1]))
+                flash('Logged in successfully!', 'success')
+                return redirect(url_for('home'))
+            else:
+                flash('Invalid password. Please try again.', 'error')
+                return render_template('login.html')
+            
         except Exception as e:
             print(f"Login error: {e}")
-            return render_template('login.html', error='Login failed')
+            flash('An error occurred during login. Please try again.', 'error')
+            return render_template('login.html')
     
     return render_template('login.html')
 
