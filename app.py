@@ -201,25 +201,25 @@ def chat():
         documents = c.fetchall()
         conn.close()
 
-        if not documents:
-            return jsonify({"error": "No documents found"}), 404
-
         combined_context = ""
-        for doc in documents:
-            combined_context += f"\nDocument: {doc[0]}\n"
-            combined_context += f"Content: {doc[1]}\n"
-            combined_context += "-" * 50 + "\n"
+        if documents:
+            for doc in documents:
+                combined_context += f"\nDocument: {doc[0]}\n"
+                combined_context += f"Content: {doc[1]}\n"
+                combined_context += "-" * 50 + "\n"
 
+        # Prepare the prompt for OpenAI
         prompt = f"""Here are all the available documents:
 {combined_context}
 
 Question: {question}
 """
 
+        # Call OpenAI API for general questions
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on the provided documents."},
+                {"role": "system", "content": "You are a helpful assistant that answers questions based on the provided documents and general knowledge."},
                 {"role": "user", "content": prompt}
             ]
         )
