@@ -201,19 +201,23 @@ def chat():
         documents = c.fetchall()
         conn.close()
 
-        combined_context = ""
+        # Prepare the prompt for OpenAI
         if documents:
+            combined_context = ""
             for doc in documents:
                 combined_context += f"\nDocument: {doc[0]}\n"
                 combined_context += f"Content: {doc[1]}\n"
                 combined_context += "-" * 50 + "\n"
 
-        # Prepare the prompt for OpenAI
-        prompt = f"""Here are all the available documents:
+            # Include document context in the prompt
+            prompt = f"""Here are all the available documents:
 {combined_context}
 
 Question: {question}
 """
+        else:
+            # If no documents, just ask the question
+            prompt = f"Question: {question}"
 
         # Call OpenAI API for general questions
         response = client.chat.completions.create(
