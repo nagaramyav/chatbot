@@ -18,7 +18,7 @@ app.secret_key = os.urandom(24)
 
 # Configure database path for Render
 DB_DIR = '/tmp'  # Use /tmp directory in Render
-DB_PATH = os.path.join(DB_DIR, 'documents.db')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'documents.db')  # Store in the project directory
 
 # Use temporary directory for uploads
 UPLOAD_FOLDER = tempfile.gettempdir()
@@ -64,6 +64,10 @@ def init_db():
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
+        # Drop existing tables if they exist
+        c.execute('DROP TABLE IF EXISTS documents')
+        c.execute('DROP TABLE IF EXISTS users')
+        
         # Create users table
         c.execute('''
             CREATE TABLE IF NOT EXISTS users
@@ -72,7 +76,7 @@ def init_db():
              password TEXT NOT NULL)
         ''')
         
-        # Create documents table
+        # Create documents table with user_id
         c.execute('''
             CREATE TABLE IF NOT EXISTS documents
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,22 +99,21 @@ init_db()
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            flash('Username and password are required')
+            return render_template('register.html')
+        
         try:
-            username = request.form.get('username')
-            password = request.form.get('password')
-            
-            if not username or not password:
-                flash('Username and password are required', 'error')
-                return render_template('register.html')
-            
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             
-            # Check if username already exists
+            # Check if username exists
             c.execute('SELECT id FROM users WHERE username = ?', (username,))
-            if c.fetchone() is not None:
-                conn.close()
-                flash('Username already exists. Please choose another.', 'error')
+            if c.fetchone():
+                flash('Username already exists')
                 return render_template('register.html')
             
             # Create new user
@@ -120,12 +123,13 @@ def register():
             conn.commit()
             conn.close()
             
-            flash('Registration successful! Please login.', 'success')
-            return redirect(url_for('login'))
+            print("Redirecting to login page after successful registration")
+            flash('Registration successful! Please login.')
+            return redirect(url_for('login'))  # Redirect to the login page
             
         except Exception as e:
             print(f"Registration error: {e}")
-            flash('An error occurred during registration', 'error')
+            flash('An error occurred during registration')
             return render_template('register.html')
     
     return render_template('register.html')
@@ -133,36 +137,27 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
         try:
-            username = request.form.get('username')
-            password = request.form.get('password')
-            
-            if not username or not password:
-                flash('Please enter both username and password', 'error')
-                return render_template('login.html')
-            
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute('SELECT id, username, password FROM users WHERE username = ?', (username,))
             user = c.fetchone()
             conn.close()
             
-            if user is None:
-                flash('Username not found. Please register first.', 'error')
-                return render_template('login.html')
-            
-            if check_password_hash(user[2], password):
+            if user and check_password_hash(user[2], password):
                 user_obj = User(user[0], user[1])
                 login_user(user_obj)
-                flash('Logged in successfully!', 'success')
-                return redirect(url_for('home'))
-            else:
-                flash('Invalid password. Please try again.', 'error')
-                return render_template('login.html')
+                return redirect(url_for('home'))  # Redirect to the home page
+            
+            flash('Invalid username or password')
+            return render_template('login.html')
             
         except Exception as e:
             print(f"Login error: {e}")
-            flash('An error occurred during login. Please try again.', 'error')
+            flash('An error occurred during login')
             return render_template('login.html')
     
     return render_template('login.html')
@@ -170,13 +165,9 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
-    try:
-        logout_user()
-        session.clear()  # Clear all session data
-        return redirect(url_for('login'))
-    except Exception as e:
-        print(f"Logout error: {e}")
-        return redirect(url_for('login'))
+    logout_user()
+    flash('You have been logged out.')
+    return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
@@ -317,5 +308,7 @@ def upload_file():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    with app.app_context():
+        init_db()  # Initialize the database
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
