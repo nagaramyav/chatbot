@@ -139,6 +139,7 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        remember = request.form.get('remember')  # Get the value of the remember checkbox
         
         try:
             conn = sqlite3.connect(DB_PATH)
@@ -149,7 +150,7 @@ def login():
             
             if user and check_password_hash(user[2], password):
                 user_obj = User(user[0], user[1])
-                login_user(user_obj)
+                login_user(user_obj, remember=remember)  # Pass remember parameter
                 return redirect(url_for('home'))  # Redirect to the home page
             
             flash('Invalid username or password')
