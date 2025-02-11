@@ -11,6 +11,7 @@ import traceback  # Add this for better error tracking
 import PyPDF2  # Make sure to install this library
 from docx import Document  # Make sure to install python-docx
 import csv
+from plaid import Client
 
 load_dotenv()
 app = Flask(__name__)
@@ -24,6 +25,11 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'documents.db')  # Store in th
 UPLOAD_FOLDER = tempfile.gettempdir()
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Plaid configuration
+PLAID_CLIENT_ID = os.getenv('PLAID_CLIENT_ID')
+PLAID_SECRET = os.getenv('PLAID_SECRET')
+PLAID_ENV = 'sandbox'  # Use 'development' or 'production' as needed
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -311,6 +317,35 @@ def upload_file():
     except Exception as e:
         print(f"Upload error: {e}")  # Debug log
         return jsonify({'error': str(e)}), 500
+
+@app.route('/link', methods=['GET'])
+def link():
+    return render_template('link.html')  # Create a link.html file for Plaid Link
+
+@app.route('/exchange_public_token', methods=['POST'])
+def exchange_public_token():
+    data = request.json
+    public_token = data['public_token']
+    
+    exchange_response = client.item.public_token.exchange(public_token)
+    access_token = exchange_response['access_token']
+    item_id = exchange_response['item_id']
+    
+    # Store access_token and item_id securely (e.g., in a database)
+    
+    return jsonify({'access_token': access_token, 'item_id': item_id})
+
+@app.route('/get_balance', methods=['POST'])
+def get_balance():
+    access_token = request.json['access_token']
+    
+    response = client.accounts.balance.get(access_token)
+    accounts = response['accounts']
+    
+    # Extract balance information
+    balances = {account['name']: account['balances'] for account in accounts}
+    
+    return jsonify(balances)
 
 if __name__ == '__main__':
     with app.app_context():
