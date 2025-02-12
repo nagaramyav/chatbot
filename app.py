@@ -12,6 +12,7 @@ from docx import Document  # Make sure to install python-docx
 import csv
 from plaid.api import plaid_api
 from plaid.configuration import Configuration
+import PyPDF2
 
 load_dotenv()
 app = Flask(__name__)
@@ -359,6 +360,14 @@ def get_balance():
     balances = {account['name']: account['balances'] for account in accounts}
     
     return jsonify(balances)
+
+def read_pdf(file_path):
+    with open(file_path, 'rb') as file:
+        reader = PyPDF2.PdfReader(file)
+        text = ''
+        for page in reader.pages:
+            text += page.extract_text() + '\n'
+        return text
 
 if __name__ == '__main__':
     with app.app_context():
