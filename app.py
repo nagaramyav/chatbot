@@ -29,7 +29,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # Plaid configuration
 PLAID_CLIENT_ID = os.getenv('PLAID_CLIENT_ID')
 PLAID_SECRET = os.getenv('PLAID_SECRET')
-PLAID_ENV = 'sandbox'  # Use 'development' or 'production' as needed
+PLAID_ENV = os.getenv('PLAID_ENV', 'sandbox')  # Default to 'sandbox' if not set
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -327,7 +327,8 @@ def exchange_public_token():
     data = request.json
     public_token = data['public_token']
     
-    exchange_response = client.item.public_token.exchange(public_token)
+    # Exchange the public token for an access token
+    exchange_response = client.Item.public_token.exchange(public_token)
     access_token = exchange_response['access_token']
     item_id = exchange_response['item_id']
     
@@ -339,7 +340,8 @@ def exchange_public_token():
 def get_balance():
     access_token = request.json['access_token']
     
-    response = client.accounts.balance.get(access_token)
+    # Retrieve account balance
+    response = client.Accounts.balance.get(access_token)
     accounts = response['accounts']
     
     # Extract balance information
