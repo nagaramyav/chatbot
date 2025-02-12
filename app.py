@@ -352,17 +352,6 @@ def exchange_public_token():
 def get_balance():
     access_token = request.json['access_token']
     
-    # Initialize the Plaid client
-    configuration = Configuration(
-        host=PLAID_ENV,
-        api_key={
-            'clientId': PLAID_CLIENT_ID,
-            'secret': PLAID_SECRET,
-        }
-    )
-
-    client = plaid_api.PlaidApi(configuration)
-
     # Retrieve account balance
     response = client.accounts.balance.get(access_token)
     accounts = response['accounts']
