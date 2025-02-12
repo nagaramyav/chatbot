@@ -10,7 +10,6 @@ import tempfile
 import traceback  # Add this for better error tracking
 from docx import Document  # Make sure to install python-docx
 import csv
-from plaid import Client
 from plaid.api import plaid_api
 from plaid.configuration import Configuration
 
