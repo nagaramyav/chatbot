@@ -8,10 +8,11 @@ from openai import OpenAI
 from werkzeug.utils import secure_filename
 import tempfile
 import traceback  # Add this for better error tracking
-import PyPDF2  # Make sure to install this library
 from docx import Document  # Make sure to install python-docx
 import csv
 from plaid import Client
+from plaid.api import plaid_api
+from plaid.configuration import Configuration
 
 load_dotenv()
 app = Flask(__name__)
@@ -327,8 +328,19 @@ def exchange_public_token():
     data = request.json
     public_token = data['public_token']
     
+    # Initialize the Plaid client
+    configuration = Configuration(
+        host=PLAID_ENV,
+        api_key={
+            'clientId': PLAID_CLIENT_ID,
+            'secret': PLAID_SECRET,
+        }
+    )
+
+    client = plaid_api.PlaidApi(configuration)
+
     # Exchange the public token for an access token
-    exchange_response = client.Item.public_token.exchange(public_token)
+    exchange_response = client.item.public_token.exchange(public_token)
     access_token = exchange_response['access_token']
     item_id = exchange_response['item_id']
     
@@ -340,8 +352,19 @@ def exchange_public_token():
 def get_balance():
     access_token = request.json['access_token']
     
+    # Initialize the Plaid client
+    configuration = Configuration(
+        host=PLAID_ENV,
+        api_key={
+            'clientId': PLAID_CLIENT_ID,
+            'secret': PLAID_SECRET,
+        }
+    )
+
+    client = plaid_api.PlaidApi(configuration)
+
     # Retrieve account balance
-    response = client.Accounts.balance.get(access_token)
+    response = client.accounts.balance.get(access_token)
     accounts = response['accounts']
     
     # Extract balance information
