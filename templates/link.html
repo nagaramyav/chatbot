@@ -13,7 +13,7 @@
         var linkHandler = Plaid.create({
             clientName: 'Your App Name',
             env: 'sandbox',  // Change to 'development' or 'production' as needed
-            key: '{{ PLAID_PUBLIC_KEY }}',  // Remove this line
+            key: 'YOUR_PLAID_PUBLIC_KEY',  // Replace with your public key
             product: ['auth', 'transactions'],
             onSuccess: function(public_token, metadata) {
                 // Send the public_token to your server
@@ -27,6 +27,7 @@
                     return response.json();
                 }).then(function(data) {
                     console.log(data);
+                    // Handle success (e.g., show a success message)
                 });
             },
             onExit: function(err, metadata) {
