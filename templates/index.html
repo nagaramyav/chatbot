@@ -306,6 +306,26 @@
         </div>
 
         <div class="upload-section">
+            <h2>Upload Resume</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" id="resumeInput" accept=".pdf,.doc,.docx" required>
+                <button type="button" id="uploadResumeButton" onclick="uploadResume()">Upload Resume</button>
+            </form>
+            <div id="resumeUploadStatus" class="status-message"></div>
+            <div id="selectedResumeFile">No file selected</div>
+        </div>
+
+        <div class="upload-section">
+            <h2>Upload Job Description</h2>
+            <form id="jdUploadForm" enctype="multipart/form-data">
+                <input type="file" id="jdInput" accept=".pdf,.doc,.docx" required>
+                <button type="button" id="uploadJDButton" onclick="uploadJD()">Upload Job Description</button>
+            </form>
+            <div id="jdUploadStatus" class="status-message"></div>
+            <div id="selectedJDFile">No file selected</div>
+        </div>
+
+        <div class="upload-section">
             <h2>Upload New Document</h2>
             <form id="uploadForm" enctype="multipart/form-data">
                 <input type="file" id="fileInput" accept=".txt,.pdf,.doc,.docx" required>
@@ -478,6 +498,42 @@
                 sendMessage();
             }
         });
+
+        async function uploadResume() {
+            const fileInput = document.getElementById('resumeInput');
+            const file = fileInput.files[0];
+            const statusDiv = document.getElementById('resumeUploadStatus');
+
+            if (!file) {
+                showStatus('Please select a resume file first', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('resume', file);
+            formData.append('jd_text', document.getElementById('jdInput').files[0] ? await readJDText() : ''); // Add JD text if available
+
+            try {
+                statusDiv.textContent = 'Uploading resume...';
+                const response = await fetch('/upload_resume', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                statusDiv.textContent = result.message + (result.match_result ? ` Match Result: ${result.match_result}` : '');
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.textContent = 'Error uploading resume. Please try again.';
+            }
+        }
+
+        async function readJDText() {
+            const jdFileInput = document.getElementById('jdInput');
+            const file = jdFileInput.files[0];
+            const text = await file.text(); // Read the JD text
+            return text;
+        }
     </script>
 </body>
 </html>

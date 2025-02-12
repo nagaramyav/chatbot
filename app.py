@@ -369,6 +369,81 @@ def read_pdf(file_path):
             text += page.extract_text() + '\n'
         return text
 
+@app.route('/upload_resume', methods=['POST'])
+def upload_resume():
+    resume_file = request.files['resume']
+    resume_path = f'uploads/{resume_file.filename}'
+    resume_file.save(resume_path)
+
+    # Read the resume text
+    resume_text = read_pdf(resume_path)
+
+    # Here you can call your resume matching logic
+    # For example: match_resume_with_jd(resume_text, jd_text)
+
+    return jsonify({'message': 'Resume uploaded successfully!'})
+
+@app.route('/upload_jd', methods=['POST'])
+def upload_jd():
+    jd_file = request.files['jd']
+    jd_path = f'uploads/{jd_file.filename}'
+    jd_file.save(jd_path)
+
+    # Read the JD text
+    jd_text = read_pdf(jd_path)
+
+    # Here you can call your resume matching logic
+    # For example: match_resume_with_jd(resume_text, jd_text)
+
+    return jsonify({'message': 'Job description uploaded successfully!'})
+
+def match_resume_with_jd(resume_text, jd_text):
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system",
+                "content": "Act as an HR assistant comparing a given job description against a candidate's resume."
+            },
+            {
+                "role": "user",
+                "content": f"Evaluate the following candidate's resume for the following job description:\n\nJob Description: {jd_text}\n\nResume: {resume_text}"
+            }
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "improvement_schema",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "match_score": {
+                            "type": "integer",
+                            "description": "An integer score representing the match, on a scale from 1 to 10."
+                        },
+                        "scope_of_improvement": {
+                            "type": "string",
+                            "description": "A description of the potential areas for improvement."
+                        }
+                    },
+                    "required": [
+                        "match_score",
+                        "scope_of_improvement"
+                    ],
+                    "additionalProperties": False
+                }
+            }
+        },
+        temperature=1,
+        max_completion_tokens=2048,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+    
+    return response['choices'][0]['message']['content']
+
 if __name__ == '__main__':
     with app.app_context():
         init_db()  # Initialize the database
