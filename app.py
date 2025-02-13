@@ -371,8 +371,12 @@ def read_pdf(file_path):
 
 @app.route('/upload_resume', methods=['POST'])
 def upload_resume():
+    # Get the absolute path to the uploads directory
+    uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+    os.makedirs(uploads_dir, exist_ok=True)
+
     resume_file = request.files['resume']
-    resume_path = f'uploads/{resume_file.filename}'
+    resume_path = os.path.join(uploads_dir, resume_file.filename)
     resume_file.save(resume_path)
 
     # Read the resume text
